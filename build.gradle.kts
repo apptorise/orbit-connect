@@ -1,6 +1,11 @@
 plugins {
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.hilt.android) apply false
+    alias(libs.plugins.ksp) apply false
     id("maven-publish")
 }
 
@@ -9,7 +14,7 @@ subprojects {
 
     afterEvaluate {
         if (plugins.hasPlugin("com.android.library")) {
-            extensions.configure<org.gradle.api.publish.PublishingExtension> {
+            extensions.configure<PublishingExtension> {
                 publications {
                     create<MavenPublication>("release") {
                         groupId = "com.github.apptorise"

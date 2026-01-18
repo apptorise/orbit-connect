@@ -30,9 +30,13 @@ android {
 
 dependencies {
     implementation(project(":lib:core"))
+
     api(libs.grpc.okhttp)
     api(libs.grpc.stub)
     api(libs.grpc.kotlin.stub)
+
+    implementation(libs.kotlinx.coroutines.core)
+
+    implementation("com.google.protobuf:protobuf-java-util:3.25.1")
     implementation(libs.androidx.core.ktx)
-    testImplementation(libs.junit)
 }

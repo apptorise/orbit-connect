@@ -1,12 +1,6 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -23,3 +17,5 @@ rootProject.name = "OrbitConnect"
 include(":lib:core")
 include(":lib:grpc")
 include(":lib:http")
+include(":lib:http-ktor")
+include(":sample")
