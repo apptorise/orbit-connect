@@ -8,7 +8,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.apptorise.orbit.connect.sample.screens.GrpcDetailScreen
 import com.apptorise.orbit.connect.sample.screens.HttpDetailScreen
+import com.apptorise.orbit.connect.sample.screens.HubScreen
 import com.apptorise.orbit.connect.sample.services.GrpcTestService
 import com.apptorise.orbit.connect.sample.services.HttpTestService
 import dagger.hilt.android.AndroidEntryPoint

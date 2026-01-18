@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 data class Post(
     val id: Int? = null,
     val title: String,
-    val body: String = "Content from OrbitConnect",
+    val body: String? = null,
     val userId: Int = 1
 )
 

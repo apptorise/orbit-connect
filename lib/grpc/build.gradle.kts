@@ -29,7 +29,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":lib:core"))
+    api(project(":lib:core"))
 
     api(libs.grpc.okhttp)
     api(libs.grpc.stub)
