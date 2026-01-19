@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.apptorise.orbit.connect.core.Result
 import com.apptorise.orbit.connect.sample.components.BeautifulJsonViewer
 import com.apptorise.orbit.connect.sample.services.GrpcTestService
 import kotlinx.coroutines.launch
@@ -29,6 +28,7 @@ fun GrpcDetailScreen(navController: NavController, service: GrpcTestService) {
     var responseJson by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var hasExecuted by remember { mutableStateOf(false) }
+    var isError by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -120,43 +120,47 @@ fun GrpcDetailScreen(navController: NavController, service: GrpcTestService) {
                     Button(
                         onClick = {
                             hasExecuted = true
+                            isLoading = true
+                            isError = false
                             scope.launch {
-                                service.testGrpcCall().collect { res ->
-                                    isLoading = res is Result.Loading
-                                    when (res) {
-                                        is Result.Success -> {
-                                            responseJson = """
-                                                {
-                                                  "status": "OK",
-                                                  "code": 0,
-                                                  "payload": "${res.data}"
-                                                }
-                                            """.trimIndent()
+                                try {
+                                    val data = service.testGrpcCall()
+                                    responseJson = """
+                                        {
+                                          "status": "OK",
+                                          "code": 0,
+                                          "payload": "$data",
+                                          "mode": "${if (service.isStub) "STUB" else "REMOTE"}"
                                         }
-                                        is Result.Error -> {
-                                            responseJson = """
-                                                {
-                                                  "status": "UNAVAILABLE",
-                                                  "code": 14,
-                                                  "details": "${res.message}"
-                                                }
-                                            """.trimIndent()
+                                    """.trimIndent()
+                                } catch (e: Exception) {
+                                    isError = true
+                                    responseJson = """
+                                        {
+                                          "status": "ERROR",
+                                          "details": "${e.localizedMessage ?: "Unknown gRPC failure"}"
                                         }
-                                        else -> Unit
-                                    }
+                                    """.trimIndent()
+                                } finally {
+                                    isLoading = false
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF03DAC6),
+                            containerColor = if (isLoading) Color.DarkGray else Color(0xFF03DAC6),
                             contentColor = Color(0xFF0D0D0D)
-                        )
+                        ),
+                        enabled = !isLoading
                     ) {
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
+                        }
                         Spacer(Modifier.width(8.dp))
-                        Text("EXECUTE RPC", fontWeight = FontWeight.Bold)
+                        Text(if (isLoading) "EXECUTING..." else "EXECUTE RPC", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -173,9 +177,9 @@ fun GrpcDetailScreen(navController: NavController, service: GrpcTestService) {
                 Spacer(Modifier.weight(1f))
                 if (hasExecuted && !isLoading) {
                     Text(
-                        text = "Status: 200 OK",
+                        text = if (isError) "Status: FAILED" else "Status: 0 OK",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF4CAF50)
+                        color = if (isError) Color(0xFFCF6679) else Color(0xFF4CAF50)
                     )
                 }
             }
