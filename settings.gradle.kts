@@ -16,6 +16,5 @@ dependencyResolutionManagement {
 rootProject.name = "OrbitConnect"
 include(":lib:core")
 include(":lib:grpc")
-include(":lib:http")
 include(":lib:http-ktor")
 include(":sample")
