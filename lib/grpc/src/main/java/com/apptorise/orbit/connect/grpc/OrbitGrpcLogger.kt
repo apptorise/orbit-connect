@@ -52,6 +52,7 @@ class OrbitGrpcLogger(
                         Log.d(tag, """
                             ┌── ✨ RESPONSE
                             │ Method: $methodName
+                            │ Host:   $hostInfo
                             │ Data:   $responseJson
                             └──────────────────────────────────────────────────
                         """.trimIndent())
@@ -62,6 +63,7 @@ class OrbitGrpcLogger(
                         val icon = if (status.isOk) "✔️" else "🆘"
                         val logMessage = """
                             $icon SESSION_END: $methodName
+                            Host:    $hostInfo
                             Status:  ${status.code} ${status.description ?: ""}
                             Headers: $trailers
                             __________________________________________________
