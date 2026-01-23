@@ -32,15 +32,24 @@ class OrbitGrpcLogger(
 
                 Log.d(tag, """
                     ┌── 🚀 REQUEST
-                    │ Method: $methodName
-                    │ Host:   $hostInfo
-                    │ Body:   $requestJson
+                    │ Method:  $methodName
+                    │ Host:    $hostInfo
+                    │ Body:    $requestJson
                     └──────────────────────────────────────────────────
                 """.trimIndent())
                 super.sendMessage(message)
             }
 
             override fun start(listener: Listener<RespT>, headers: Metadata) {
+                val headerString = headers.toString()
+
+                Log.d(tag, """
+                    ┌── 📑 HEADERS
+                    │ Method:  $methodName
+                    │ Metadata: $headerString
+                    └──────────────────────────────────────────────────
+                """.trimIndent())
+
                 val forwardingListener = object : ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(listener) {
                     override fun onMessage(message: RespT) {
                         val responseJson = if (message is MessageOrBuilder) {
@@ -63,9 +72,9 @@ class OrbitGrpcLogger(
                         val icon = if (status.isOk) "✔️" else "🆘"
                         val logMessage = """
                             $icon SESSION_END: $methodName
-                            Host:    $hostInfo
-                            Status:  ${status.code} ${status.description ?: ""}
-                            Headers: $trailers
+                            Host:     $hostInfo
+                            Status:   ${status.code} ${status.description ?: ""}
+                            Trailers: $trailers
                             __________________________________________________
                         """.trimIndent()
 
