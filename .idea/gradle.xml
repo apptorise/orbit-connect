@@ -13,7 +13,6 @@
             <option value="$PROJECT_DIR$/lib" />
             <option value="$PROJECT_DIR$/lib/core" />
             <option value="$PROJECT_DIR$/lib/grpc" />
-            <option value="$PROJECT_DIR$/lib/http" />
             <option value="$PROJECT_DIR$/lib/http-ktor" />
             <option value="$PROJECT_DIR$/sample" />
           </set>

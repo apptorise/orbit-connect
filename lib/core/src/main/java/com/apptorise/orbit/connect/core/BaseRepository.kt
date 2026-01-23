@@ -9,7 +9,7 @@ abstract class BaseRepository {
         fetch: suspend () -> Remote,
         saveFetchResult: suspend (Remote) -> Unit,
         mapToDomain: (Local) -> Domain,
-        shouldFetch: (Local?) -> Boolean = { it == null }
+        shouldFetch: (Local?) -> Boolean = { true }
     ): Flow<Result<Domain>> = flow {
         emit(Result.Loading)
 
