@@ -1,6 +1,8 @@
 package com.apptorise.orbit.connect.core
 
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 
 abstract class BaseRepository {
 
@@ -10,21 +12,25 @@ abstract class BaseRepository {
         saveFetchResult: suspend (Remote) -> Unit,
         mapToDomain: (Local) -> Domain,
         shouldFetch: (Local?) -> Boolean = { true }
-    ): Flow<Result<Domain>> = flow {
-        emit(Result.Loading)
+    ): Flow<Result<Domain>> = channelFlow {
+        send(Result.Loading)
 
         val localData = query().firstOrNull()
 
         if (shouldFetch(localData)) {
-            try {
-                val remoteData = fetch()
-                saveFetchResult(remoteData)
-            } catch (e: Exception) {
-                emit(Result.Error(message = e.localizedMessage ?: "Sync failed", exception = e))
+            launch {
+                try {
+                    val remoteData = fetch()
+                    saveFetchResult(remoteData)
+                } catch (e: Exception) {
+                    send(Result.Error(message = e.localizedMessage ?: "Sync failed", exception = e))
+                }
             }
         }
 
-        emitAll(query().map { Result.Success(mapToDomain(it)) })
+        query().collect { data ->
+            send(Result.Success(mapToDomain(data)))
+        }
     }
 
     fun <Remote, Domain> performRemote(
