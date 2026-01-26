@@ -19,7 +19,7 @@ subprojects {
                     create<MavenPublication>("release") {
                         groupId = "com.github.apptorise"
                         artifactId = "orbit-connect-${project.name}"
-                        version = "1.0.13"
+                        version = "1.0.14"
 
                         afterEvaluate {
                             from(components["release"])

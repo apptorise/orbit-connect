@@ -19,21 +19,15 @@ open class OrbitGrpcService(
         } catch (e: Exception) {
             val isAuthError = isUnauthenticated(e)
 
-            println("Orbit_Nexus: Error caught during gRPC call. Type: ${e.javaClass.simpleName}, Message: ${e.message}")
-
-            if (isAuthError && tokenRefresher != null) {
-                println("Orbit_Nexus: [401] Unauthenticated detected. Attempting token refresh...")
-
-                if (tokenRefresher.refreshToken()) {
-                    println("Orbit_Nexus: Refresh successful! Retrying the original gRPC call...")
-                    return block()
-                } else {
-                    println("Orbit_Nexus: Refresh failed (Refresh token likely expired). Propagating error.")
-                }
-            } else if (isAuthError && tokenRefresher == null) {
-                println("Orbit_Nexus: [401] Unauthenticated detected, but tokenRefresher is NULL. Did you forget to inject it?")
-            } else {
-                println("Orbit_Nexus: Exception is not an authentication error or cannot be handled by retry.")
+            if (isAuthError) {
+                tokenRefresher?.let {
+                    println("Orbit_Nexus: [401] Unauthenticated detected. Attempting token refresh...")
+                    if (it.refreshToken()) {
+                        println("Orbit_Nexus: Refresh successful! Retrying the original gRPC call...")
+                        return block()
+                    }
+                    println("Orbit_Nexus: Refresh failed (Refresh token likely expired).")
+                } ?: println("Orbit_Nexus: [401] Unauthenticated detected, but tokenRefresher is NULL.")
             }
 
             throw handleException(e)
@@ -49,7 +43,6 @@ open class OrbitGrpcService(
                 else -> null
             }
             if (status?.code == Status.Code.UNAUTHENTICATED) {
-                println("Orbit_Nexus: Found UNAUTHENTICATED status in cause chain: ${cause.javaClass.simpleName}")
                 return true
             }
             cause = cause.cause
