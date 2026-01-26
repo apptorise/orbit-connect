@@ -27,12 +27,17 @@ open class OrbitGrpcService(
     }
 
     private fun isUnauthenticated(e: Exception): Boolean {
-        val status = when (e) {
-            is StatusRuntimeException -> e.status
-            is StatusException -> e.status
-            else -> null
+        var cause: Throwable? = e
+        while (cause != null) {
+            val status = when (cause) {
+                is StatusRuntimeException -> cause.status
+                is StatusException -> cause.status
+                else -> null
+            }
+            if (status?.code == Status.Code.UNAUTHENTICATED) return true
+            cause = cause.cause
         }
-        return status?.code == Status.Code.UNAUTHENTICATED
+        return false
     }
 
     private fun handleException(e: Exception): Exception {
