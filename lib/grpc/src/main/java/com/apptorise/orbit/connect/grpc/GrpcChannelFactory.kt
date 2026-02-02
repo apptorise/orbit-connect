@@ -10,9 +10,12 @@ object GrpcChannelFactory {
         host: String,
         port: Int,
         useTls: Boolean = true,
+        userAgent: String? = null,
         interceptors: List<ClientInterceptor> = emptyList()
     ): ManagedChannel {
         val builder = ManagedChannelBuilder.forAddress(host, port)
+
+        userAgent?.let { builder.userAgent(it) }
 
         if (useTls) {
             builder.useTransportSecurity()
