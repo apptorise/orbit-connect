@@ -1,6 +1,5 @@
 package com.apptorise.orbit.connect.core
 
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -16,6 +15,7 @@ abstract class BaseRepository {
         send(Result.Loading)
 
         val localData = query().firstOrNull()
+        var networkCallCompleted = false
 
         if (shouldFetch(localData)) {
             launch {
@@ -23,13 +23,34 @@ abstract class BaseRepository {
                     val remoteData = fetch()
                     saveFetchResult(remoteData)
                 } catch (e: Exception) {
-                    send(Result.Error(message = e.localizedMessage ?: "Sync failed", exception = e))
+                    if (isDataEmpty(localData)) {
+                        send(Result.Error(message = e.localizedMessage ?: "Sync failed", exception = e))
+                    }
+                } finally {
+                    networkCallCompleted = true
                 }
             }
+        } else {
+            networkCallCompleted = true
         }
 
         query().collect { data ->
-            send(Result.Success(mapToDomain(data)))
+            val domainData = mapToDomain(data)
+            val isEmpty = isDataEmpty(data)
+
+            if (isEmpty && !networkCallCompleted) {
+                send(Result.Loading)
+            } else {
+                send(Result.Success(domainData))
+            }
+        }
+    }
+
+    private fun isDataEmpty(data: Any?): Boolean {
+        return when (data) {
+            null -> true
+            is Collection<*> -> data.isEmpty()
+            else -> false
         }
     }
 
