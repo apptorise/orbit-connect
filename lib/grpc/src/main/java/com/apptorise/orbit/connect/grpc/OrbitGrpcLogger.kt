@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 import io.grpc.*
+import java.nio.charset.StandardCharsets
 
 class OrbitGrpcLogger(
     private val tag: String = "Orbit_Nexus",
@@ -45,18 +46,29 @@ class OrbitGrpcLogger(
                 val headerLogs = StringBuilder()
 
                 headers.keys().forEach { keyName ->
-                    val key = Metadata.Key.of(keyName, Metadata.ASCII_STRING_MARSHALLER)
-                    val value = headers.get(key)
+                    if (keyName.endsWith(Metadata.BINARY_HEADER_SUFFIX)) {
+                        val key = Metadata.Key.of(keyName, Metadata.BINARY_BYTE_MARSHALLER)
+                        val value = headers.get(key)
+                        headerLogs.append("│ $keyName: [Binary Data, size: ${value?.size ?: 0} bytes]\n")
+                    } else {
+                        val key = Metadata.Key.of(keyName, Metadata.ASCII_STRING_MARSHALLER)
+                        val value = headers.get(key)
 
-                    if (value != null) {
-                        val displayValue = try {
-                            // Basic heuristic: if it looks like Base64 (starts with { after decode), show decoded
-                            val decoded = String(Base64.decode(value, Base64.NO_WRAP))
-                            if (decoded.contains("{") || decoded.contains("[")) " [Decoded]: $decoded" else value
-                        } catch (e: Exception) {
-                            value
+                        if (value != null) {
+                            val displayValue = try {
+                                val decodedBytes = Base64.decode(value, Base64.NO_WRAP)
+                                val decodedString = String(decodedBytes, StandardCharsets.UTF_8)
+                                // Only show decoded if it looks like a structured object (JSON)
+                                if (decodedString.contains("{") || decodedString.contains("[")) {
+                                    "$value [Decoded: $decodedString]"
+                                } else {
+                                    value
+                                }
+                            } catch (e: Exception) {
+                                value
+                            }
+                            headerLogs.append("│ $keyName: $displayValue\n")
                         }
-                        headerLogs.append("│ $keyName: $displayValue\n")
                     }
                 }
 
