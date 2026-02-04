@@ -56,9 +56,11 @@ class OrbitGrpcLogger(
 
                         if (value != null) {
                             val displayValue = try {
-                                val decodedBytes = Base64.decode(value, Base64.NO_WRAP)
+                                // Strip "Bearer " if present for JWT decoding
+                                val cleanValue = value.removePrefix("Bearer ").trim()
+                                val decodedBytes = Base64.decode(cleanValue, Base64.NO_WRAP)
                                 val decodedString = String(decodedBytes, StandardCharsets.UTF_8)
-                                // Only show decoded if it looks like a structured object (JSON)
+
                                 if (decodedString.contains("{") || decodedString.contains("[")) {
                                     "$value [Decoded: $decodedString]"
                                 } else {
