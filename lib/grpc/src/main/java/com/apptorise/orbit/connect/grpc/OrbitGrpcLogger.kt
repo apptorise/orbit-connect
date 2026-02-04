@@ -1,5 +1,6 @@
 package com.apptorise.orbit.connect.grpc
 
+import android.util.Base64
 import android.util.Log
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
@@ -41,12 +42,28 @@ class OrbitGrpcLogger(
             }
 
             override fun start(listener: Listener<RespT>, headers: Metadata) {
-                val headerString = headers.toString()
+                val headerLogs = StringBuilder()
+
+                headers.keys().forEach { keyName ->
+                    val key = Metadata.Key.of(keyName, Metadata.ASCII_STRING_MARSHALLER)
+                    val value = headers.get(key)
+
+                    if (value != null) {
+                        val displayValue = try {
+                            // Basic heuristic: if it looks like Base64 (starts with { after decode), show decoded
+                            val decoded = String(Base64.decode(value, Base64.NO_WRAP))
+                            if (decoded.contains("{") || decoded.contains("[")) " [Decoded]: $decoded" else value
+                        } catch (e: Exception) {
+                            value
+                        }
+                        headerLogs.append("│ $keyName: $displayValue\n")
+                    }
+                }
 
                 Log.d(tag, """
                     ┌── 📑 HEADERS
                     │ Method:  $methodName
-                    │ Metadata: $headerString
+                    ${headerLogs.toString().trimEnd()}
                     └──────────────────────────────────────────────────
                 """.trimIndent())
 
