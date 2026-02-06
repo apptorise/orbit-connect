@@ -5,6 +5,13 @@ import kotlinx.coroutines.launch
 
 abstract class BaseRepository {
 
+    /**
+     * offline-first resource:
+     * - local db is the absolute source of truth and is always observed.
+     * - emits local immediately if not empty.
+     * - if local is empty, it stays in loading until remote fetch completes.
+     * - any changes to local db at any time will trigger a new emission.
+     */
     fun <Local, Remote, Domain> syncResource(
         query: () -> Flow<Local>,
         fetch: suspend () -> Remote,
@@ -12,65 +19,70 @@ abstract class BaseRepository {
         mapToDomain: (Local) -> Domain,
         shouldFetch: (Local?) -> Boolean = { true }
     ): Flow<Result<Domain>> = channelFlow {
-        var networkFinished = false
-        var networkError: Exception? = null
+        val networkStatus = MutableStateFlow<NetworkStatus>(NetworkStatus.Idle)
 
-        // 1. Start the network fetch in a separate coroutine
-        val networkJob = launch {
+        // 1. start the fetch process immediately
+        launch {
             try {
-                // Peek at local data to decide if we fetch
-                val currentLocal = query().firstOrNull()
-                if (shouldFetch(currentLocal)) {
-                    val remoteData = fetch()
-                    saveFetchResult(remoteData)
+                val localPeek = query().firstOrNull()
+                if (shouldFetch(localPeek)) {
+                    networkStatus.value = NetworkStatus.Fetching
+                    val remote = fetch()
+                    saveFetchResult(remote)
+                    networkStatus.value = NetworkStatus.Success
+                } else {
+                    networkStatus.value = NetworkStatus.Success
                 }
             } catch (e: Exception) {
-                networkError = e
-            } finally {
-                networkFinished = true
+                networkStatus.value = NetworkStatus.Error(e)
             }
         }
 
-        // 2. Immediately collect from the database
-        query().collect { data ->
-            val domainData = mapToDomain(data)
-            val isEmpty = isDataEmpty(data)
+        // 2. always observe the source of truth (local db)
+        // we combine it with network status to decide whether to show loading or data
+        query().combine(networkStatus) { localData, status ->
+            val isEmpty = isDataEmpty(localData)
+            val domain = mapToDomain(localData)
 
             when {
-                // If we have any data (cached or new), show it immediately
-                !isEmpty -> {
-                    send(Result.Success(domainData))
+                // if we have data, we show it immediately. local is truth.
+                !isEmpty -> Result.Success(domain)
+
+                // if empty and we are still fetching, keep loading
+                isEmpty && status is NetworkStatus.Fetching -> Result.Loading
+
+                // if empty and network failed, show the error
+                isEmpty && status is NetworkStatus.Error -> {
+                    Result.Error(
+                        message = status.exception.localizedMessage?.lowercase() ?: "fetch failed",
+                        exception = status.exception
+                    )
                 }
 
-                // If empty and network is still working, show loading
-                isEmpty && !networkFinished -> {
-                    send(Result.Loading)
-                }
+                // if empty and network finished (or idle), show the empty success
+                isEmpty && status is NetworkStatus.Success -> Result.Success(domain)
 
-                // If empty and network failed, show error
-                isEmpty && networkFinished && networkError != null -> {
-                    send(Result.Error(
-                        message = networkError?.localizedMessage?.lowercase() ?: "sync failed",
-                        exception = networkError
-                    ))
-                }
-
-                // If empty and network finished with no data, show empty success
-                isEmpty && networkFinished -> {
-                    send(Result.Success(domainData))
-                }
+                // default starting state
+                else -> Result.Loading
             }
         }
+            .distinctUntilChanged()
+            .collect { send(it) }
     }
 
-    private fun isDataEmpty(data: Any?): Boolean {
-        return when (data) {
-            null -> true
-            is Collection<*> -> data.isEmpty()
-            else -> false
-        }
+    /**
+     * internal network states to coordinate with local observer
+     */
+    private sealed interface NetworkStatus {
+        data object Idle : NetworkStatus
+        data object Fetching : NetworkStatus
+        data object Success : NetworkStatus
+        data class Error(val exception: Exception) : NetworkStatus
     }
 
+    /**
+     * perform a remote-only operation (no local storage).
+     */
     fun <Remote, Domain> performRemote(
         action: suspend () -> Remote,
         mapToDomain: (Remote) -> Domain,
@@ -79,31 +91,58 @@ abstract class BaseRepository {
         emit(Result.Loading)
         try {
             val result = action()
-            val domainModel = mapToDomain(result)
-            onSuccess?.invoke(domainModel)
-            emit(Result.Success(domainModel))
+            val domain = mapToDomain(result)
+            onSuccess?.invoke(domain)
+            emit(Result.Success(domain))
         } catch (e: Exception) {
-            emit(Result.Error(message = e.localizedMessage?.lowercase() ?: "operation failed", exception = e))
+            emit(
+                Result.Error(
+                    message = e.localizedMessage?.lowercase() ?: "operation failed",
+                    exception = e
+                )
+            )
         }
     }
 
+    /**
+     * sync continuous remote stream with local db.
+     */
     fun <Local, Remote, Domain> syncStream(
         query: () -> Flow<Local>,
         remoteStream: Flow<Remote>,
         saveStreamItem: suspend (Remote) -> Unit,
         mapToDomain: (Local) -> Domain
-    ): Flow<Result<Domain>> = flow {
-        emit(Result.Loading)
+    ): Flow<Result<Domain>> = channelFlow {
+        launch {
+            query().collect { local ->
+                send(Result.Success(mapToDomain(local)))
+            }
+        }
 
-        val networkJob = remoteStream
-            .onEach { saveStreamItem(it) }
-            .catch { emit(Result.Error(message = it.localizedMessage?.lowercase() ?: "stream error", exception = it)) }
+        launch {
+            try {
+                remoteStream.collect { remote ->
+                    saveStreamItem(remote)
+                }
+            } catch (e: Exception) {
+                send(
+                    Result.Error(
+                        message = e.localizedMessage?.lowercase() ?: "stream error",
+                        exception = e
+                    )
+                )
+            }
+        }
+    }
 
-        emitAll(
-            merge(
-                networkJob.map { Result.Loading },
-                query().map { Result.Success(mapToDomain(it)) }
-            )
-        )
+    /**
+     * utility: check if local data is empty.
+     */
+    protected fun isDataEmpty(data: Any?): Boolean {
+        return when (data) {
+            null -> true
+            is Collection<*> -> data.isEmpty()
+            else -> false
+        }
     }
 }
