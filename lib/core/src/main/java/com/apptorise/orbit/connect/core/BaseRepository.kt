@@ -14,37 +14,49 @@ abstract class BaseRepository {
     ): Flow<Result<Domain>> = channelFlow {
         send(Result.Loading)
 
-        val localData = query().firstOrNull()
-        var networkCallCompleted = false
+        val localDataFirst = query().firstOrNull()
+        var networkError: Exception? = null
+        var networkFinished = false
 
-        if (shouldFetch(localData)) {
-            launch {
-                try {
+        launch {
+            try {
+                if (shouldFetch(localDataFirst)) {
                     val remoteData = fetch()
                     saveFetchResult(remoteData)
-                } catch (e: Exception) {
-                    if (isDataEmpty(localData)) {
-                        send(Result.Error(message = e.localizedMessage ?: "Sync failed", exception = e))
-                    }
-                } finally {
-                    networkCallCompleted = true
                 }
+            } catch (e: Exception) {
+                networkError = e
+            } finally {
+                networkFinished = true
             }
-        } else {
-            networkCallCompleted = true
         }
 
         query().collect { data ->
             val domainData = mapToDomain(data)
             val isEmpty = isDataEmpty(data)
 
-            if (isEmpty && !networkCallCompleted) {
-                send(Result.Loading)
-            } else {
-                send(Result.Success(domainData))
+            when {
+                !isEmpty -> {
+                    send(Result.Success(domainData))
+                }
+
+                isEmpty && networkFinished && networkError != null -> {
+                    send(Result.Error(
+                        message = networkError?.localizedMessage?.lowercase() ?: "sync failed",
+                        exception = networkError
+                    ))
+                }
+
+                isEmpty && !networkFinished -> {
+                    send(Result.Loading)
+                }
+
+                isEmpty && networkFinished -> {
+                    send(Result.Success(domainData))
+                }
             }
         }
-    }
+    }.distinctUntilChanged()
 
     private fun isDataEmpty(data: Any?): Boolean {
         return when (data) {
@@ -66,9 +78,9 @@ abstract class BaseRepository {
             onSuccess?.invoke(domainModel)
             emit(Result.Success(domainModel))
         } catch (e: Exception) {
-            emit(Result.Error(message = e.localizedMessage ?: "Operation failed", exception = e))
+            emit(Result.Error(message = e.localizedMessage?.lowercase() ?: "operation failed", exception = e))
         }
-    }
+    }.distinctUntilChanged()
 
     fun <Local, Remote, Domain> syncStream(
         query: () -> Flow<Local>,
@@ -80,7 +92,7 @@ abstract class BaseRepository {
 
         val networkJob = remoteStream
             .onEach { saveStreamItem(it) }
-            .catch { emit(Result.Error(message = it.localizedMessage ?: "Stream error", exception = it)) }
+            .catch { emit(Result.Error(message = it.localizedMessage?.lowercase() ?: "stream error", exception = it)) }
 
         emitAll(
             merge(
@@ -88,5 +100,5 @@ abstract class BaseRepository {
                 query().map { Result.Success(mapToDomain(it)) }
             )
         )
-    }
+    }.distinctUntilChanged()
 }
