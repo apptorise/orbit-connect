@@ -12,20 +12,15 @@ abstract class BaseRepository {
         mapToDomain: (Local) -> Domain,
         shouldFetch: (Local?) -> Boolean = { true }
     ): Flow<Result<Domain>> = channelFlow {
-        // Use a local variable to track the last sent state to avoid redundant emissions
-        // without killing the flow using distinctUntilChanged()
-        var lastEmittedIsLoading = false
-
-        send(Result.Loading)
-        lastEmittedIsLoading = true
-
-        val localDataFirst = query().firstOrNull()
-        var networkError: Exception? = null
         var networkFinished = false
+        var networkError: Exception? = null
 
-        launch {
+        // 1. Start the network fetch in a separate coroutine
+        val networkJob = launch {
             try {
-                if (shouldFetch(localDataFirst)) {
+                // Peek at local data to decide if we fetch
+                val currentLocal = query().firstOrNull()
+                if (shouldFetch(currentLocal)) {
                     val remoteData = fetch()
                     saveFetchResult(remoteData)
                 }
@@ -36,33 +31,32 @@ abstract class BaseRepository {
             }
         }
 
+        // 2. Immediately collect from the database
         query().collect { data ->
             val domainData = mapToDomain(data)
             val isEmpty = isDataEmpty(data)
 
             when {
+                // If we have any data (cached or new), show it immediately
                 !isEmpty -> {
-                    lastEmittedIsLoading = false
                     send(Result.Success(domainData))
                 }
 
+                // If empty and network is still working, show loading
+                isEmpty && !networkFinished -> {
+                    send(Result.Loading)
+                }
+
+                // If empty and network failed, show error
                 isEmpty && networkFinished && networkError != null -> {
-                    lastEmittedIsLoading = false
                     send(Result.Error(
                         message = networkError?.localizedMessage?.lowercase() ?: "sync failed",
                         exception = networkError
                     ))
                 }
 
-                isEmpty && !networkFinished -> {
-                    if (!lastEmittedIsLoading) {
-                        send(Result.Loading)
-                        lastEmittedIsLoading = true
-                    }
-                }
-
+                // If empty and network finished with no data, show empty success
                 isEmpty && networkFinished -> {
-                    lastEmittedIsLoading = false
                     send(Result.Success(domainData))
                 }
             }
