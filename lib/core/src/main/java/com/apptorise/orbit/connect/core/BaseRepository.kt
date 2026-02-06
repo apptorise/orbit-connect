@@ -12,7 +12,12 @@ abstract class BaseRepository {
         mapToDomain: (Local) -> Domain,
         shouldFetch: (Local?) -> Boolean = { true }
     ): Flow<Result<Domain>> = channelFlow {
+        // Use a local variable to track the last sent state to avoid redundant emissions
+        // without killing the flow using distinctUntilChanged()
+        var lastEmittedIsLoading = false
+
         send(Result.Loading)
+        lastEmittedIsLoading = true
 
         val localDataFirst = query().firstOrNull()
         var networkError: Exception? = null
@@ -37,10 +42,12 @@ abstract class BaseRepository {
 
             when {
                 !isEmpty -> {
+                    lastEmittedIsLoading = false
                     send(Result.Success(domainData))
                 }
 
                 isEmpty && networkFinished && networkError != null -> {
+                    lastEmittedIsLoading = false
                     send(Result.Error(
                         message = networkError?.localizedMessage?.lowercase() ?: "sync failed",
                         exception = networkError
@@ -48,15 +55,19 @@ abstract class BaseRepository {
                 }
 
                 isEmpty && !networkFinished -> {
-                    send(Result.Loading)
+                    if (!lastEmittedIsLoading) {
+                        send(Result.Loading)
+                        lastEmittedIsLoading = true
+                    }
                 }
 
                 isEmpty && networkFinished -> {
+                    lastEmittedIsLoading = false
                     send(Result.Success(domainData))
                 }
             }
         }
-    }.distinctUntilChanged()
+    }
 
     private fun isDataEmpty(data: Any?): Boolean {
         return when (data) {
@@ -80,7 +91,7 @@ abstract class BaseRepository {
         } catch (e: Exception) {
             emit(Result.Error(message = e.localizedMessage?.lowercase() ?: "operation failed", exception = e))
         }
-    }.distinctUntilChanged()
+    }
 
     fun <Local, Remote, Domain> syncStream(
         query: () -> Flow<Local>,
@@ -100,5 +111,5 @@ abstract class BaseRepository {
                 query().map { Result.Success(mapToDomain(it)) }
             )
         )
-    }.distinctUntilChanged()
+    }
 }
