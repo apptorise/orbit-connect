@@ -7,10 +7,9 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.io.InputStreamReader
 
-abstract class OrbitGrpcService : OrbitEngine() {
-
-    @PublishedApi
-    internal abstract val config: IOrbitConnectConfig
+abstract class OrbitGrpcService(
+    @PublishedApi internal val config: IOrbitConnectConfig
+) : OrbitEngine() {
 
     override val isStub: Boolean
         get() = config.isStub

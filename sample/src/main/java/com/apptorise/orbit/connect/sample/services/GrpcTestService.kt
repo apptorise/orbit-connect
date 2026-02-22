@@ -22,7 +22,6 @@ class GrpcTestService(
     suspend fun testMockJsonCall(): TestResponse = call(
         mockFilePath = "mocks/test_call.json"
     ) {
-        // Real gRPC stub call would go here
         delay(1000)
         TestResponse(message = "Real Server Data")
     }
