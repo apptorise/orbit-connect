@@ -7,7 +7,10 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.io.InputStreamReader
 
-open class OrbitGrpcService(@PublishedApi internal val config: IOrbitConnectConfig) : OrbitEngine() {
+abstract class OrbitGrpcService : OrbitEngine() {
+
+    @PublishedApi
+    internal abstract val config: IOrbitConnectConfig
 
     override val isStub: Boolean
         get() = config.isStub
@@ -15,34 +18,47 @@ open class OrbitGrpcService(@PublishedApi internal val config: IOrbitConnectConf
     @PublishedApi
     internal val gson = Gson()
 
-    protected suspend fun <R> call(stubProvider: suspend () -> R, block: suspend () -> R): R = try {
-        if (isStub) stubProvider() else block()
-    } catch (e: Exception) {
-        handleGrpcError(e, block)
+    protected suspend fun <R> call(
+        stubProvider: suspend () -> R,
+        block: suspend () -> R
+    ): R {
+        return try {
+            if (isStub) stubProvider() else block()
+        } catch (e: Exception) {
+            handleGrpcError(e, block)
+        }
     }
 
-    protected suspend inline fun <reified R> call(mockFilePath: String, crossinline block: suspend () -> R): R = try {
-        if (isStub) {
-            val inputStream = try {
-                config.context.assets.open(mockFilePath)
-            } catch (e: java.io.FileNotFoundException) {
-                throw IllegalArgumentException("Mock file not found at assets/$mockFilePath. Ensure the file exists.")
-            }
+    protected suspend inline fun <reified R> call(
+        mockFilePath: String,
+        crossinline block: suspend () -> R
+    ): R {
+        return try {
+            if (isStub) {
+                val inputStream = try {
+                    config.context.assets.open(mockFilePath)
+                } catch (e: java.io.FileNotFoundException) {
+                    throw IllegalArgumentException("Mock file not found at assets/$mockFilePath")
+                }
 
-            inputStream.use { stream ->
-                val reader = InputStreamReader(stream)
-                gson.fromJson(reader, R::class.java)
+                inputStream.use { stream ->
+                    val reader = InputStreamReader(stream)
+                    gson.fromJson(reader, R::class.java)
+                }
+            } else {
+                block()
             }
-        } else {
-            block()
+        } catch (e: Exception) {
+            if (e is IllegalArgumentException) throw e
+            handleGrpcError(e) { block() }
         }
-    } catch (e: Exception) {
-        if (e is IllegalArgumentException) throw e
-        handleGrpcError(e) { block() }
     }
 
     @PublishedApi
-    internal suspend fun <R> handleGrpcError(e: Exception, block: suspend () -> R): R {
+    internal suspend fun <R> handleGrpcError(
+        e: Exception,
+        block: suspend () -> R
+    ): R {
         val isAuthError = isUnauthenticated(e)
         if (isAuthError) {
             if (config.tokenRefresher.refreshToken()) {
@@ -66,9 +82,11 @@ open class OrbitGrpcService(@PublishedApi internal val config: IOrbitConnectConf
         return false
     }
 
-    private fun handleException(e: Exception): Exception = when (e) {
-        is StatusRuntimeException -> Exception(e.status.description ?: "gRPC Code: ${e.status.code}")
-        is StatusException -> Exception(e.status.description ?: "gRPC Code: ${e.status.code}")
-        else -> Exception(e.localizedMessage ?: "Unknown Transport Error")
+    private fun handleException(e: Exception): Exception {
+        return when (e) {
+            is StatusRuntimeException -> Exception(e.status.description ?: "gRPC Code: ${e.status.code}")
+            is StatusException -> Exception(e.status.description ?: "gRPC Code: ${e.status.code}")
+            else -> Exception(e.localizedMessage ?: "Unknown Transport Error")
+        }
     }
 }
