@@ -40,15 +40,17 @@ abstract class OrbitGrpcService(
                     throw IllegalArgumentException("Mock file not found at assets/$mockFilePath")
                 }
 
-                inputStream.use { stream ->
+                val result = inputStream.use { stream ->
                     val reader = InputStreamReader(stream)
                     gson.fromJson(reader, R::class.java)
                 }
+
+                result ?: throw NullPointerException("JSON at $mockFilePath parsed to null. Check your JSON structure against ${R::class.java.simpleName}")
             } else {
                 block()
             }
         } catch (e: Exception) {
-            if (e is IllegalArgumentException) throw e
+            if (e is IllegalArgumentException || e is NullPointerException) throw e
             handleGrpcError(e) { block() }
         }
     }
