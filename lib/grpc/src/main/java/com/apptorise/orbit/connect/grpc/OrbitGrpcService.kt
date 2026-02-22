@@ -1,7 +1,8 @@
 package com.apptorise.orbit.connect.grpc
 
 import com.apptorise.orbit.connect.core.OrbitEngine
-import com.google.gson.Gson
+import com.google.protobuf.Message
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -13,9 +14,6 @@ abstract class OrbitGrpcService(
 
     override val isStub: Boolean
         get() = config.isStub
-
-    @PublishedApi
-    internal val gson = Gson()
 
     protected suspend fun <R> call(
         stubProvider: suspend () -> R,
@@ -32,25 +30,23 @@ abstract class OrbitGrpcService(
         mockFilePath: String,
         crossinline block: suspend () -> R
     ): R {
-        return try {
-            if (isStub) {
-                val inputStream = try {
-                    config.context.assets.open(mockFilePath)
-                } catch (e: java.io.FileNotFoundException) {
-                    throw IllegalArgumentException("Mock file not found at assets/$mockFilePath")
-                }
-
-                val result = inputStream.use { stream ->
-                    val reader = InputStreamReader(stream)
-                    gson.fromJson(reader, R::class.java)
-                }
-
-                result ?: throw NullPointerException("JSON at $mockFilePath parsed to null. Check your JSON structure against ${R::class.java.simpleName}")
-            } else {
-                block()
+        if (isStub) {
+            val inputStream = try {
+                config.context.assets.open(mockFilePath)
+            } catch (e: java.io.FileNotFoundException) {
+                throw IllegalStateException("CRITICAL: Mock file missing at assets/$mockFilePath. Stubs cannot function without this file.")
             }
+
+            return inputStream.use { stream ->
+                val builder = (R::class.java.getMethod("newBuilder").invoke(null) as Message.Builder)
+                JsonFormat.parser().ignoringUnknownFields().merge(InputStreamReader(stream), builder)
+                builder.build() as R
+            }
+        }
+
+        return try {
+            block()
         } catch (e: Exception) {
-            if (e is IllegalArgumentException || e is NullPointerException) throw e
             handleGrpcError(e) { block() }
         }
     }
