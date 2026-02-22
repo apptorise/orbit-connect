@@ -1,11 +1,12 @@
 package com.apptorise.orbit.connect.sample.services
 
+import com.apptorise.orbit.connect.grpc.IOrbitConnectConfig
 import com.apptorise.orbit.connect.grpc.OrbitGrpcService
 import kotlinx.coroutines.delay
 
 class GrpcTestService(
-    override val isStub: Boolean
-) : OrbitGrpcService(isStub) {
+    config: IOrbitConnectConfig
+) : OrbitGrpcService(config) {
 
     suspend fun testGrpcCall(): String = call(
         stubProvider = {
@@ -17,4 +18,14 @@ class GrpcTestService(
             "Success from Real gRPC Server"
         }
     )
+
+    suspend fun testMockJsonCall(): TestResponse = call(
+        mockFilePath = "mocks/test_call.json"
+    ) {
+        // Real gRPC stub call would go here
+        delay(1000)
+        TestResponse(message = "Real Server Data")
+    }
 }
+
+data class TestResponse(val message: String)
