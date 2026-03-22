@@ -26,6 +26,20 @@ abstract class OrbitHttpService(
         coerceInputValues = true
     }
 
+    protected suspend inline fun <reified R : Any> call(
+        method: HttpMethod,
+        path: String,
+        mockFilePath: String,
+        body: Any? = null,
+        headers: Map<String, String> = emptyMap()
+    ): R {
+        return if (isStub) {
+            loadMockData(mockFilePath)
+        } else {
+            performRemoteCall(method, path, body, headers)
+        }
+    }
+
     inline fun <reified R : Any> request(
         method: HttpMethod,
         path: String,
