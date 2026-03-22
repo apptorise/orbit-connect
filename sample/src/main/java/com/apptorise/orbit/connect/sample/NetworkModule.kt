@@ -1,12 +1,15 @@
-package com.apptorise.orbit.connect.sample.di
+package com.apptorise.orbit.connect.sample
 
+import android.content.Context
 import com.apptorise.orbit.connect.core.network.DefaultErrorParser
 import com.apptorise.orbit.connect.core.network.ErrorParser
 import com.apptorise.orbit.connect.http.ktor.HttpClientFactory
+import com.apptorise.orbit.connect.http.ktor.IOrbitHttpConfig
 import com.apptorise.orbit.connect.sample.services.HttpTestService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
@@ -34,12 +37,21 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideHttpService(
+    fun provideOrbitHttpConfig(
+        @ApplicationContext context: Context,
         client: HttpClient,
         errorParser: ErrorParser
-    ): HttpTestService = HttpTestService(
-        client = client,
-        isStub = false,
-        errorParser = errorParser
-    )
+    ): IOrbitHttpConfig = object : IOrbitHttpConfig {
+        override val context: Context = context
+        override val client: HttpClient = client
+        override val errorParser: ErrorParser = errorParser
+        override val isStub: Boolean = false
+        override val logTag: String = "Orbit_Nexus"
+    }
+
+    @Provides
+    @Singleton
+    fun provideHttpService(
+        config: IOrbitHttpConfig
+    ): HttpTestService = HttpTestService(config)
 }

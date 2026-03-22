@@ -1,9 +1,8 @@
 package com.apptorise.orbit.connect.sample.services
 
 import com.apptorise.orbit.connect.core.Result
-import com.apptorise.orbit.connect.core.network.ErrorParser
+import com.apptorise.orbit.connect.http.ktor.IOrbitHttpConfig
 import com.apptorise.orbit.connect.http.ktor.OrbitHttpService
-import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
@@ -16,16 +15,19 @@ data class Post(
 )
 
 class HttpTestService(
-    client: HttpClient,
-    errorParser: ErrorParser,
-    isStub: Boolean
-) : OrbitHttpService(client, errorParser, isStub) {
+    config: IOrbitHttpConfig
+) : OrbitHttpService(config) {
 
     private val baseUrl = "https://jsonplaceholder.typicode.com/posts"
 
     fun getAll(): Flow<Result<List<Post>>> = get(
         path = baseUrl,
         stubProvider = { listOf(Post(1, "Stub Title")) }
+    )
+
+    fun getAllFromAssets(): Flow<Result<List<Post>>> = get(
+        path = baseUrl,
+        mockFilePath = "mocks/posts.json"
     )
 
     fun create(post: Post): Flow<Result<Post>> = post(
