@@ -25,11 +25,16 @@ object NetworkModule {
         ignoreUnknownKeys = true
         prettyPrint = true
         isLenient = true
+        coerceInputValues = true
     }
 
     @Provides
     @Singleton
-    fun provideHttpClient(): HttpClient = HttpClientFactory.create()
+    fun provideHttpClient(json: Json): HttpClient = HttpClientFactory.create(
+        baseUrl = "http://localhost/", // Default base, can be overridden by caller
+        isDebug = true,
+        jsonConfig = json
+    )
 
     @Provides
     @Singleton
